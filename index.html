@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Packard Morphology Expander</title>
+<style>
+:root{--bg:#fafaf7;--fg:#222;--muted:#666;--card:#fff;--line:#ddd;--accent:#7a3b1d}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1b1b;--fg:#eee;--muted:#aaa;--card:#252525;--line:#444;--accent:#e0a070}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px}
+h1{font-size:1.6rem;margin:0 0 4px}p.sub{color:var(--muted);margin-top:0}
+textarea,input{width:100%;box-sizing:border-box;font:15px ui-monospace,monospace;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg)}
+table{width:100%;border-collapse:collapse;margin-top:16px;background:var(--card)}
+td,th{border-bottom:1px solid var(--line);padding:8px;text-align:left;vertical-align:top}
+td:first-child{font-family:ui-monospace,monospace;white-space:nowrap}
+.unk{color:#c0392b;font-weight:bold}
+details{margin-top:24px}pre{overflow-x:auto;background:var(--card);padding:12px;border:1px solid var(--line);border-radius:6px;font-size:13px}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<main>
+<h1>Packard Morphology Expander</h1>
+<p class="sub">Converts CCAT/Packard codes (e.g. <code>packard:VAI-AMI2S</code>) into readable labels. Paste one code per line, or paste TEI containing <code>morph="packard:…"</code> attributes.</p>
+<textarea id="in" rows="7">packard:VAI-AMI2S
+packard:N1-NSF
+V1-PAPNSM
+RA-GPN
+A1-NPMC</textarea>
+<table><thead><tr><th>Code</th><th>Expansion</th></tr></thead><tbody id="out"></tbody></table>
+<p class="sub">Unrecognised letters are shown in <span class="unk">[brackets]</span>. The tables were compiled from the CCAT scheme and should be checked against the CCAT documentation, especially the less common voice letters (E, D, O, N).</p>
+<details><summary>Use the function in your own interface</summary><pre id="src"></pre></details>
+</main>
+<script id="lib">
+const POS = { V:"Verb", N:"Noun", A:"Adjective", D:"Adverb", C:"Conjunction",
+  P:"Preposition", X:"Particle", I:"Interjection", M:"Indeclinable Number",
+  RA:"Article", RP:"Personal Pronoun", RR:"Relative Pronoun",
+  RD:"Demonstrative Pronoun", RI:"Interrogative Pronoun", RX:"Indefinite Pronoun" };
+const TENSE = { P:"Present", I:"Imperfect", F:"Future", A:"Aorist", X:"Perfect", Y:"Pluperfect" };
+const VOICE = { A:"Active", M:"Middle", P:"Passive", E:"Middle or Passive",
+  D:"Middle Deponent", O:"Passive Deponent", N:"Middle or Passive Deponent" };
+const MOOD = { I:"Indicative", D:"Imperative", S:"Subjunctive", O:"Optative", N:"Infinitive", P:"Participle" };
+const CASE = { N:"Nominative", G:"Genitive", D:"Dative", A:"Accusative", V:"Vocative" };
+const NUMBER = { S:"Singular", D:"Dual", P:"Plural" };
+const GENDER = { M:"Masculine", F:"Feminine", N:"Neuter" };
+const PERSON = { 1:"1st Person", 2:"2nd Person", 3:"3rd Person" };
+const DEGREE = { C:"Comparative", S:"Superlative" };
+
+function expandPackard(code, mark = c => `[${c}]`) {
+  const look = (t, c) => c === undefined ? undefined : (t[c] ?? mark(c));
+  const [type, parse = ""] = code.trim().replace(/^packard:/, "").split(/[-\s]+/);
+  const pos = POS[type.slice(0, 2)] || POS[type[0]] || mark(type);
+  if (!parse) return pos;
+  if (pos === "Verb") {
+    const [t, v, m, ...rest] = parse;
+    let tail = look(VOICE, v);
+    if (m === "P") tail += " " + [look(CASE, rest[0]), look(NUMBER, rest[1]), look(GENDER, rest[2])].filter(Boolean).join(" ");
+    else if (m !== "N") tail += " " + [look(PERSON, rest[0]), look(NUMBER, rest[1])].filter(Boolean).join(" ");
+    return `${pos} ${look(TENSE, t)} ${look(MOOD, m)} - ${tail}`;
+  }
+  const [c, n, g, d] = parse;
+  return [pos, look(CASE, c), look(NUMBER, n), look(GENDER, g), look(DEGREE, d)].filter(Boolean).join(" ");
+}
+</script>
+<script>
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function run() {
+  const txt = document.getElementById("in").value;
+  let codes = [...txt.matchAll(/morph="([^"]+)"/g)].map(m => m[1]);
+  if (!codes.length) codes = txt.split(/\n/).map(s => s.trim()).filter(Boolean);
+  document.getElementById("out").innerHTML = codes.map(c =>
+    `<tr><td>${esc(c)}</td><td>${esc(expandPackard(c, x => "\u0001" + x + "\u0002"))
+      .replace(/\u0001(.*?)\u0002/g, '<span class="unk">[$1]</span>')}</td></tr>`).join("");
+}
+document.getElementById("in").addEventListener("input", run);
+document.getElementById("src").textContent = document.getElementById("lib").textContent.trim();
+run();
+</script>
+</body>
+</html>
